@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { getProductList, downloadProduct, ProductItem, getArticleInfo } from '@/api/product'
+import { getTaskList } from '@/api/task'
 import { Button, Card, Pagination, Select, Spinner, Drawer, Modal } from '@/components/ui'
 import { useAuthStore } from '@/store/auth'
 import { useToast } from '@/components/ui/Toast'
-import { ExternalLink, Eye, Download, RefreshCw } from 'lucide-react'
+import { ExternalLink, Eye, Download, RefreshCw, CheckSquare, Square } from 'lucide-react'
 
 const orderOptions = [
   { label: '最新', value: 'new' },
@@ -30,10 +31,11 @@ export const CaseList: React.FC = () => {
   const isUserPageChangeRef = useRef(false)
   // 用于保存上一页返回的 score，用于下一页请求
   const lastScoreRef = useRef<number>(0)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showCookieModal, setShowCookieModal] = useState(false)
   const [cookie, setCookie] = useState('')
   const [showConfirmModal, setShowConfirmModal] = useState(false)
-  const [confirmItem, setConfirmItem] = useState<ProductItem | null>(null)
+  const [confirmItems, setConfirmItems] = useState<ProductItem[]>([])
   const [showDetailDrawer, setShowDetailDrawer] = useState(false)
   const [detailItem, setDetailItem] = useState<ProductItem | null>(null)
   const [articleDetail, setArticleDetail] = useState<any>(null)
@@ -101,23 +103,90 @@ export const CaseList: React.FC = () => {
     }
   }
 
+  const allSelected = items.length > 0 && items.every((item) => selectedIds.has(item.id))
+  const selectedItems = items.filter((item) => selectedIds.has(item.id))
+
   const handleDownloadClick = (item: ProductItem) => {
-    setConfirmItem(item)
+    setConfirmItems([item])
     setShowConfirmModal(true)
   }
 
-  const handleDownloadConfirm = async () => {
-    if (!confirmItem) return
-    try {
-      await downloadProduct({
-        pid: Number(confirmItem.id),
-      })
-      addToast('缓存任务已创建', 'success')
-      setShowConfirmModal(false)
-      setConfirmItem(null)
-    } catch (error) {
-      console.error('Failed to download', error)
+  const handleBatchDownloadClick = async () => {
+    if (selectedItems.length === 0) {
+      addToast('请先选择课程', 'warning')
+      return
     }
+    try {
+      const res = await getTaskList({ perPage: 10000 })
+      const existingIds = new Set((res.rows || []).map((t) => t.other_id?.toString()))
+      const newItems = selectedItems.filter((item) => !existingIds.has(item.id))
+      if (newItems.length === 0) {
+        addToast('选中的课程都已存在，无需重复缓存', 'info')
+        return
+      }
+      const skipped = selectedItems.length - newItems.length
+      if (skipped > 0) {
+        addToast(`${skipped} 个课程已存在，已自动过滤`, 'info')
+      }
+      setConfirmItems(newItems)
+      setShowConfirmModal(true)
+    } catch (error) {
+      console.error('Failed to check existing tasks', error)
+      setConfirmItems(selectedItems)
+      setShowConfirmModal(true)
+    }
+  }
+
+  const handleSelectAll = useCallback(() => {
+    if (allSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(items.map((item) => item.id)))
+    }
+  }, [allSelected, items])
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  const handleDownloadConfirm = () => {
+    const items = confirmItems
+    if (items.length === 0) return
+    setShowConfirmModal(false)
+    setConfirmItems([])
+    setSelectedIds(new Set())
+    addToast(`开始缓存 ${items.length} 个课程...`, 'info')
+    // 后台逐个执行，不阻塞 UI
+    ;(async () => {
+      let successCount = 0
+      let failCount = 0
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        if (i > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 3000))
+        }
+        try {
+          await downloadProduct({ pid: Number(item.id) })
+          successCount++
+        } catch (error) {
+          console.error(`Failed to download ${item.title}`, error)
+          failCount++
+        }
+      }
+      if (failCount > 0) {
+        addToast(`缓存完成：${successCount} 成功，${failCount} 失败`, 'warning')
+      } else {
+        addToast(`缓存完成：${successCount} 个`, 'success')
+      }
+    })()
   }
 
   const handleViewDetail = async (item: ProductItem) => {
@@ -195,13 +264,48 @@ export const CaseList: React.FC = () => {
           </div>
         ) : (
           <>
+            <div className="flex items-center justify-between mb-3 px-1">
+              <button
+                onClick={handleSelectAll}
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary-600 transition-colors"
+              >
+                {allSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+                {allSelected ? '取消全选' : '全选'}
+              </button>
+              <div className="flex items-center gap-2">
+                {selectedItems.length > 0 && (
+                  <span className="text-sm text-gray-500">已选 {selectedItems.length} 项</span>
+                )}
+                {geekAuth ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={selectedItems.length === 0}
+                    onClick={handleBatchDownloadClick}
+                  >
+                    <Download size={14} className="mr-1" />
+                    批量缓存
+                  </Button>
+                ) : null}
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {items.map((item) => (
                 <div
                   key={item.id}
-                  className="border rounded-lg p-4 hover:border-gray-300 transition-colors"
+                  className={`border rounded-lg p-4 transition-colors ${
+                    selectedIds.has(item.id)
+                      ? 'border-primary-400 bg-primary-50/50'
+                      : 'hover:border-gray-300'
+                  }`}
                 >
                   <div className="flex items-start gap-3">
+                    <button
+                      onClick={() => handleToggleSelect(item.id)}
+                      className="mt-0.5 flex-shrink-0 text-gray-400 hover:text-primary-500 transition-colors"
+                    >
+                      {selectedIds.has(item.id) ? <CheckSquare size={18} className="text-primary-500" /> : <Square size={18} />}
+                    </button>
                     <img
                       src={item.cover?.square}
                       alt={item.title}
@@ -328,28 +432,42 @@ export const CaseList: React.FC = () => {
         isOpen={showConfirmModal}
         onClose={() => {
           setShowConfirmModal(false)
-          setConfirmItem(null)
+          setConfirmItems([])
         }}
         title="确认缓存"
         size="sm"
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            缓存 [{confirmItem?.title}]后请在[我的课程]查看详情
+            {confirmItems.length === 1
+              ? `缓存 [${confirmItems[0]?.title}] 后请在 [我的课程] 查看详情`
+              : `缓存选中的 ${confirmItems.length} 个课程后请在 [我的课程] 查看详情`}
           </p>
+          {confirmItems.length > 1 && (
+            <div className="max-h-32 overflow-y-auto border rounded-lg p-2">
+              {confirmItems.map((item) => (
+                <div key={item.id} className="text-sm text-gray-600 py-1 truncate">
+                  {item.title}
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex gap-3">
             <Button
               variant="secondary"
               onClick={() => {
                 setShowConfirmModal(false)
-                setConfirmItem(null)
+                setConfirmItems([])
               }}
               className="flex-1"
             >
               取消
             </Button>
-            <Button onClick={handleDownloadConfirm} className="flex-1">
-              确定
+            <Button
+              onClick={handleDownloadConfirm}
+              className="flex-1"
+            >
+              确定{confirmItems.length > 1 ? ` (${confirmItems.length})` : ''}
             </Button>
           </div>
         </div>

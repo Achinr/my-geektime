@@ -7,6 +7,8 @@ export interface SettingData {
   site: {
     cache: boolean
     download: boolean
+    download_video: boolean
+    download_audio: boolean
     register: {
       type: string
     }

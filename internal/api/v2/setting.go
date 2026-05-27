@@ -28,6 +28,8 @@ func (s *Setting) Update(c *gin.Context) {
 	}
 	global.CONF.Storage.Host = req.StorageHost
 	global.CONF.Site.Download = req.SiteDownload
+	global.CONF.Site.DownloadVideo = req.SiteDownloadVideo
+	global.CONF.Site.DownloadAudio = req.SiteDownloadAudio
 	global.CONF.Site.Cache = req.SiteCache
 	global.CONF.Site.Play.ProxyUrl = req.SitePlayUrls
 	global.CONF.Site.Proxy.ProxyUrl = req.SiteProxyURL

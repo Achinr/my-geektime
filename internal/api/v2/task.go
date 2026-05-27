@@ -55,7 +55,15 @@ func (t *Task) List(c *gin.Context) {
 	var ls []*model.Task
 	tx := global.DB.Model(&model.Task{})
 	if req.Xstatus > 0 {
-		tx = tx.Where("status = ?", req.Xstatus)
+		if req.Xstatus == 2 {
+			var runningPids []string
+			global.DB.Model(&model.Task{}).
+				Where("status = ? AND task_type = ? AND deleted_at = ?", 2, "article", 0).
+				Distinct("task_pid").Pluck("task_pid", &runningPids)
+			tx = tx.Where("task_id IN ?", runningPids)
+		} else {
+			tx = tx.Where("status = ?", req.Xstatus)
+		}
 	}
 	if req.ProductForm > 0 {
 		tx = tx.Where("other_form = ?", req.ProductForm)
@@ -152,6 +160,15 @@ func (t *Task) List(c *gin.Context) {
 			}
 			row.Redirect = sys_dict.ProductDetailURLWithType(
 				articleData.Product.Type, articleData.Info.Pid, articleData.Info.ID)
+			if len(l.TaskPid) > 0 {
+				var parentTask model.Task
+				if err := global.DB.Model(&model.Task{}).
+					Where("task_id = ?", l.TaskPid).
+					Select("task_name").
+					First(&parentTask).Error; err == nil {
+					row.ParentName = parentTask.TaskName
+				}
+			}
 		}
 		row.Cover = service.URLProxyReplace(row.Cover)
 		row.Author.Avatar = service.URLProxyReplace(row.Author.Avatar)
@@ -279,10 +296,21 @@ func (t *Task) Retry(c *gin.Context) {
 			},
 		}
 		statisticsRaw, _ := json.Marshal(newStatistics)
+		// Recompute bstatus from current global config on retry
+		bstatus := int32(0)
+		if global.CONF.Site.Download {
+			bstatus = service.BSTATUS_DOWNLOAD
+			if global.CONF.Site.DownloadVideo {
+				bstatus |= service.BSTATUS_DOWNLOAD_VIDEO
+			}
+			if global.CONF.Site.DownloadAudio {
+				bstatus |= service.BSTATUS_DOWNLOAD_AUDIO
+			}
+		}
 		if err := tx.Model(&model.Task{}).
 			Where("task_id = ?", taskId).
 			UpdateColumn("status", service.TASK_STATUS_PENDING).
-			UpdateColumn("bstatus", service.TASK_STATUS_PENDING).
+			UpdateColumn("bstatus", bstatus).
 			UpdateColumn("statistics", statisticsRaw).Error; err != nil {
 			return err
 		}
@@ -290,14 +318,14 @@ func (t *Task) Retry(c *gin.Context) {
 			if err := tx.Model(&model.Task{}).
 				Where("task_id IN ?", ids).
 				UpdateColumn("status", service.TASK_STATUS_PENDING).
-				UpdateColumn("bstatus", service.TASK_STATUS_PENDING).Error; err != nil {
+				UpdateColumn("bstatus", bstatus).Error; err != nil {
 				return err
 			}
 		} else {
 			if err := tx.Model(&model.Task{}).
 				Where("task_pid = ?", taskId).
 				UpdateColumn("status", service.TASK_STATUS_PENDING).
-				UpdateColumn("bstatus", service.TASK_STATUS_PENDING).Error; err != nil {
+				UpdateColumn("bstatus", bstatus).Error; err != nil {
 				return err
 			}
 		}

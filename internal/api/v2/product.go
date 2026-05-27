@@ -154,8 +154,28 @@ func (p *Product) Download(c *gin.Context) {
 			OtherGroup: product.OtherGroup,
 			OtherTag:   product.OtherTag,
 		}
-		if global.CONF.Site.Download {
-			item.Bstatus = service.TASK_STATUS_PENDING
+		// Set Bstatus based on per-request or global config
+		if req.DownloadVideo != nil || req.DownloadAudio != nil {
+			bstatus := 0
+			if req.DownloadVideo != nil && *req.DownloadVideo {
+				bstatus |= service.BSTATUS_DOWNLOAD_VIDEO
+			}
+			if req.DownloadAudio != nil && *req.DownloadAudio {
+				bstatus |= service.BSTATUS_DOWNLOAD_AUDIO
+			}
+			if bstatus > 0 {
+				bstatus |= service.BSTATUS_DOWNLOAD
+				item.Bstatus = int32(bstatus)
+			}
+		} else if global.CONF.Site.Download {
+			bstatus := service.BSTATUS_DOWNLOAD
+			if global.CONF.Site.DownloadVideo {
+				bstatus |= service.BSTATUS_DOWNLOAD_VIDEO
+			}
+			if global.CONF.Site.DownloadAudio {
+				bstatus |= service.BSTATUS_DOWNLOAD_AUDIO
+			}
+			item.Bstatus = int32(bstatus)
 		}
 		tasks = append(tasks, &item)
 	}
@@ -170,7 +190,15 @@ func (p *Product) Download(c *gin.Context) {
 		},
 	}
 	job.Statistics, _ = json.Marshal(statistics)
-	if global.CONF.Site.Download {
+	// Job Bstatus: set PENDING if any article will download media
+	hasDownload := false
+	for _, x := range tasks {
+		if x.Bstatus > 0 {
+			hasDownload = true
+			break
+		}
+	}
+	if hasDownload {
 		job.Bstatus = service.TASK_STATUS_PENDING
 	}
 	err = global.DB.Transaction(func(tx *gorm.DB) error {

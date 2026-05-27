@@ -40,65 +40,132 @@ func TaskHandler(ctx context.Context, t time.Time) error {
 func iterators(ctx context.Context, loaded bool) error {
 	timeCtx, timeCancel := context.WithTimeout(ctx, time.Hour)
 	defer timeCancel()
-	hasMore, page, psize := true, 1, 6
-	orderTasks, batchTasks := make([]*model.Task, 0, psize), make([]*model.Task, 0, psize)
-	for hasMore {
+	// 统一处理所有 PENDING 任务，按 task_pid 分组
+	// 避免将 product 任务和 article 任务分开处理：
+	// product 任务在统计子任务状态时可能将自身设回 PENDING，
+	// 导致 product 循环无法退出，article 任务得不到处理
+	if loaded {
+		return processTasksBatch(timeCtx, true)
+	}
+	return processTasksBatch(timeCtx, false)
+}
+
+// processTasksBatch 按 task_pid 分组批量处理 PENDING 任务
+func processTasksBatch(ctx context.Context, loaded bool) error {
+	psize := 6
+	for {
 		var ls []*model.Task
 		tx := global.DB.Model(&model.Task{})
 		if loaded {
-			tx = tx.Where("task_pid = ?", "").Where("status <= ?", service.TASK_STATUS_PENDING)
+			tx = tx.Where("status <= ?", service.TASK_STATUS_PENDING)
 		} else {
 			tx = tx.Where("status = ?", service.TASK_STATUS_PENDING)
 		}
 		tx = tx.Where("deleted_at = ?", 0)
 		if err := tx.Order("id ASC").
-			Offset((page - 1) * psize).
 			Limit(psize + 1).
 			Find(&ls).Error; err != nil {
 			global.LOG.Error("task handler find", zap.Error(err))
 			return err
 		}
-		if len(ls) <= psize {
-			hasMore = false
-		} else {
+		if len(ls) == 0 {
+			return nil
+		}
+		hasMore := len(ls) > psize
+		if hasMore {
 			ls = ls[:psize]
 		}
-		page++
-		orderTasks = orderTasks[:0]
-		batchTasks = batchTasks[:0]
-		for _, value := range ls {
-			if len(value.RewriteHls) == 0 {
-				orderTasks = append(orderTasks, value)
-			} else {
-				batchTasks = append(batchTasks, value)
-			}
-		}
-
-		batch := global.GPool.NewBatch()
-		for _, value := range batchTasks {
-			x := value
-			batch.Queue(func(pctx context.Context) (any, error) {
-				err := worker(pctx, x)
-				if err != nil {
-					global.LOG.Error("task handler worker", zap.Error(err), zap.String("taskid", x.TaskId))
-				}
-				return nil, err
-			})
-		}
-		for _, value := range orderTasks {
-			x := value
-			batch.Queue(func(pctx context.Context) (any, error) {
-				err := worker(pctx, x)
-				if err != nil {
-					global.LOG.Error("task handler worker", zap.Error(err), zap.String("taskid", x.TaskId))
-				}
-				return nil, err
-			})
-		}
-		if _, err := batch.Wait(timeCtx); err != nil {
-			global.LOG.Error("task handler wait", zap.Error(err))
+		// 按 task_pid 分组：从当前批次中找出所有不同的 task_pid
+		// 对于每个 task_pid，连同已属于同组的其他任务一起处理
+		if err := processGrouped(ctx, ls); err != nil {
 			return err
 		}
+		if !hasMore {
+			return nil
+		}
+	}
+}
+
+// processGrouped 按 task_pid 分组处理任务
+// 对于批次中的每个 task_id/task_pid，查询所有同组的 PENDING 子任务一起处理
+func processGrouped(ctx context.Context, tasks []*model.Task) error {
+	type groupKey struct {
+		pid  string
+		isProduct bool
+	}
+	seen := make(map[groupKey]bool)
+	for _, t := range tasks {
+		var gk groupKey
+		if t.TaskPid == "" {
+			// product 类型：按 task_id 分组
+			gk = groupKey{pid: t.TaskId, isProduct: true}
+		} else {
+			// article 类型：按 task_pid 分组
+			gk = groupKey{pid: t.TaskPid, isProduct: false}
+		}
+		if seen[gk] {
+			continue
+		}
+		seen[gk] = true
+	}
+	for gk := range seen {
+		var group []*model.Task
+		tx := global.DB.Model(&model.Task{}).
+			Where("deleted_at = ?", 0).
+			Where("status = ?", service.TASK_STATUS_PENDING)
+		if gk.isProduct {
+			tx = tx.Where("task_id = ?", gk.pid)
+		} else {
+			tx = tx.Where("task_pid = ?", gk.pid)
+		}
+		if err := tx.Order("id ASC").Find(&group).Error; err != nil {
+			global.LOG.Error("task handler find group", zap.Error(err), zap.String("pid", gk.pid))
+			return err
+		}
+		if len(group) == 0 {
+			continue
+		}
+		if err := processTasks(ctx, group); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// processTasks 批量处理一组任务
+func processTasks(ctx context.Context, tasks []*model.Task) error {
+	orderTasks, batchTasks := make([]*model.Task, 0, len(tasks)), make([]*model.Task, 0, len(tasks))
+	for _, value := range tasks {
+		if len(value.RewriteHls) == 0 {
+			orderTasks = append(orderTasks, value)
+		} else {
+			batchTasks = append(batchTasks, value)
+		}
+	}
+	batch := global.GPool.NewBatch()
+	for _, value := range batchTasks {
+		x := value
+		batch.Queue(func(pctx context.Context) (any, error) {
+			err := worker(pctx, x)
+			if err != nil {
+				global.LOG.Error("task handler worker", zap.Error(err), zap.String("taskid", x.TaskId))
+			}
+			return nil, err
+		})
+	}
+	for _, value := range orderTasks {
+		x := value
+		batch.Queue(func(pctx context.Context) (any, error) {
+			err := worker(pctx, x)
+			if err != nil {
+				global.LOG.Error("task handler worker", zap.Error(err), zap.String("taskid", x.TaskId))
+			}
+			return nil, err
+		})
+	}
+	if _, err := batch.Wait(ctx); err != nil {
+		global.LOG.Error("task handler wait", zap.Error(err))
+		return err
 	}
 	return nil
 }

@@ -26,6 +26,12 @@ const (
 )
 
 const (
+	BSTATUS_DOWNLOAD     = 0x01
+	BSTATUS_DOWNLOAD_VIDEO = 0x02
+	BSTATUS_DOWNLOAD_AUDIO = 0x04
+)
+
+const (
 	TASK_TYPE_PRODUCT = "product"
 	TASK_TYPE_ARTICLE = "article"
 )
@@ -132,13 +138,15 @@ func Download(ctx context.Context, x *model.Task, data geek.ArticleData) error {
 		x.RewriteHls = meta.Spec
 		x.Ciphertext = meta.Ciphertext
 		if x.Bstatus > 0 {
-			if data.Info.IsVideo {
+			shouldDownloadVideo := data.Info.IsVideo && (int(x.Bstatus)&BSTATUS_DOWNLOAD_VIDEO != 0)
+			shouldDownloadAudio := !data.Info.IsVideo && (int(x.Bstatus)&BSTATUS_DOWNLOAD_AUDIO != 0)
+			if shouldDownloadVideo {
 				source, err = VideoWithM3u8(ctx, dir, fileName, meta)
 				if err != nil {
 					global.LOG.Error("download video with m3u8 lib", zap.Error(err), zap.String("taskId", x.TaskId))
 					return err
 				}
-			} else {
+			} else if shouldDownloadAudio {
 				up, _ := url.Parse(downloadURL)
 				if strings.Contains(up.Path, up.Host) {
 					downloadURL = strings.TrimPrefix(up.Path, "/")

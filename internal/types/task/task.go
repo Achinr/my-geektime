@@ -70,6 +70,8 @@ type Task struct {
 	Article geek.ProductArticle `json:"article,omitempty"`
 	// redirect
 	Redirect string `json:"redirect,omitempty"`
+	// parent name
+	ParentName string `json:"parent_name,omitempty"`
 }
 
 type TaskStatistics struct {

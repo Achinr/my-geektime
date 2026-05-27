@@ -1,0 +1,76 @@
+server:
+    app_name: My Geek Time
+    run_mode: debug
+    http_addr: 0.0.0.0
+    http_port: 8090
+jwt:
+    secret: mygeektime-secret
+    expires: 86400
+i18n:
+    directory: i18n
+    default_lang: zh-CN
+database:
+    driver: postgres
+    source: host=localhost user=postgres password=postgres dbname=mygeektime port=5432 sslmode=disable TimeZone=Asia/Shanghai
+    max_idle_conns: 20
+    max_open_conns: 100
+    log:
+        directory: ""
+        prefix: ""
+        format: ""
+        level: ""
+        encoder_level: ""
+        stacktrace_key: ""
+        max_age: 0
+        show_line: false
+        console: false
+storage:
+    driver: local
+    directory: /mnt/f/workspace/my-geektime/repo
+    bucket: object
+    host: http://127.0.0.1:8090
+browser:
+    open_browser: false
+site:
+    cache: false
+    download: true
+    download_video: true
+    download_audio: false
+    register:
+        types:
+            - name
+        email:
+            subject: ""
+            body: ""
+            attach: ""
+    login:
+        types:
+            - name
+        guest:
+            name:
+                account: ""
+                password: ""
+            email:
+                account: ""
+                password: ""
+    play:
+        type: origin
+        proxy_url:
+            - https://res001.geekbang.org
+    proxy:
+        urls:
+            - https://static001.geekbang.org/resource/image/*
+            - https://static001.geekbang.org/account/avatar/*
+            - https://static001.geekbang.org/files/resource/*
+        proxy_url: /v2/file/proxy?url={url}
+        cache: true
+        cache_prefix: resource
+    cookie:
+        geektime: LF_ID=fbca23b-fd46d32-50d39f3-734c0aa; GCID=334d6c3-8002158-02e0ee5-5cfc224; GRID=334d6c3-8002158-02e0ee5-5cfc224; GCESS=BgwBAQMETnQUagcED6npXQEI7eIiAAAAAAAGBBQBFqkFBAAAAAAKBAAAAAAEBACNJwACBE50FGoNAQEIAQMJAQELAgYA; tfstk=gR2iFfDw_5l18SLFEEk1tWNL9tfpWAMjlrpxkx3VT2uCfRQsBKP0V2UT6Gatix43PjutMRUnuPUSMlEYnW90VowOfxIsClMj3aQRexq_fxTus9tznvJEVmBx0ClZCvRSEmC5eTE_bKSYmaW8Mcn4K2gq3fl2T9uIcdk23fSn8mmWgFzq3Mjn20pqufo2Tpom8qkq3rrFxmgEbxk4ukSncbZ6Q4y4dJ77eKfnKubaLccizluaXleUVU3ub2v23Vmis6qZ-KJ4KSM3gR3NNH3jBVZIjr6WCAl0Non0SOvaouwQ-DzPnL3aAuF-1RWWGkkiWbPqtGWaxA0iZDlHmCkggPwm15xfVkkaR7gS_6_IxRe-i4GH8NrLxVluiPQB3VFuYyc8pep-hyN4um4eSgypTQ7lCKiFDJRXGfoIx4Ki7OUn79B2HMjHNxGZAcQRxMAXGfoIx4IhxQNj_DiOy; mantis5539=08690063ff9d4c1ca5561e230f08f679@5539; _ga=GA1.2.2129306258.1779725424; _ga_MTX5SQH9CV=GS2.2.s1779725425$o1$g0$t1779725425$j60$l0$h0; Hm_lvt_59c4ff31a9ee6263811b23eb921a5083=1779725356,1779898416; HMACCOUNT=D0028DE0BF8A0008; _gid=GA1.2.492646249.1779898416; _gat=1; Hm_lpvt_59c4ff31a9ee6263811b23eb921a5083=1779898423; _ga_03JGDGP9Y3=GS2.2.s1779898416$o2$g1$t1779898422$j54$l0$h0
+    email:
+        smtp:
+            host: ""
+            port: ""
+            username: ""
+            password: ""
+            from: ""

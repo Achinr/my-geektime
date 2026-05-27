@@ -46,7 +46,7 @@ func (s *Dict) Create(c *gin.Context) {
 		} else {
 			var parent model.SysDict
 			if err := tx.Model(&model.SysDict{}).
-				Where("`key` = ?", r.Pkey).
+				Where("key = ?", r.Pkey).
 				First(&parent).Error; err != nil {
 				return err
 			}
@@ -138,7 +138,7 @@ func (s *Dict) List(c *gin.Context) {
 	var ls []*model.SysDict
 	tx := global.DB.Model(&model.SysDict{})
 	if req.Key != "" {
-		tx = tx.Where("`key` = ?", req.Key)
+		tx = tx.Where("key = ?", req.Key)
 	}
 	if req.Pkey != "" {
 		tx = tx.Where("pkey = ?", req.Pkey)
@@ -200,7 +200,7 @@ func (s *Dict) List(c *gin.Context) {
 	}
 	var info model.SysDict
 	if err := global.DB.Model(&model.SysDict{}).
-		Where("`key` = ?", req.Pkey).First(&info).Error; err != nil {
+		Where("key = ?", req.Pkey).First(&info).Error; err != nil {
 		global.FAIL(c, "fail.msg", err.Error())
 		return
 	}

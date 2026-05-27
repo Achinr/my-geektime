@@ -16,7 +16,7 @@ import (
 type Dict struct{}
 
 func (d *Dict) QueryWithKey(ctx context.Context, key string) (l *model.SysDict, err error) {
-	err = global.DB.WithContext(ctx).Model(&model.SysDict{}).Where("`key` = ?", key).Find(&l).Error
+	err = global.DB.WithContext(ctx).Model(&model.SysDict{}).Where("key = ?", key).Find(&l).Error
 	return
 }
 

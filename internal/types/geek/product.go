@@ -34,6 +34,8 @@ type ProductListRow struct {
 	Cover         ProductCover   `json:"cover,omitempty"`
 	Article       ProductArticle `json:"article,omitempty"`
 	Redirect      string         `json:"redirect,omitempty"`
+	Downloaded    bool           `json:"downloaded,omitempty"`
+	TaskStatus    int            `json:"task_status,omitempty"`
 }
 
 type ProductShare struct {
@@ -368,7 +370,9 @@ type ProductBase struct {
 }
 
 type DowloadRequest struct {
-	Pid int64 `json:"pid,omitempty" binding:"required"`
+	Pid           int64 `json:"pid,omitempty" binding:"required"`
+	DownloadVideo *bool `json:"download_video,omitempty"`
+	DownloadAudio *bool `json:"download_audio,omitempty"`
 }
 
 type DowloadResponse struct {

@@ -13,6 +13,8 @@ export interface TaskListParams {
 
 export interface TaskItem {
   task_id: string
+  task_pid?: string
+  other_id?: string
   task_name: string
   subtitle: string
   cover: string

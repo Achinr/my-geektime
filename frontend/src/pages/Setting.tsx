@@ -11,6 +11,8 @@ export const Setting: React.FC = () => {
     site: {
       cache: false,
       download: false,
+      download_video: true,
+      download_audio: true,
       register: { type: 'name' },
       play: { type: 'origin', proxy_url: [] },
       proxy: { proxy_url: '', urls: [] },
@@ -43,7 +45,9 @@ export const Setting: React.FC = () => {
     try {
       await updateSetting({
         storageHost: settings.storage.host,
-        siteDownload: settings.site.download,
+        siteDownload: settings.site.download_video || settings.site.download_audio,
+        siteDownloadVideo: settings.site.download_video,
+        siteDownloadAudio: settings.site.download_audio,
         siteCache: settings.site.cache,
         siteProxyUrl: settings.site.proxy.proxy_url,
         siteProxyUrls: settings.site.proxy.urls,
@@ -189,19 +193,36 @@ export const Setting: React.FC = () => {
           <div className="border-t pt-3 flex gap-6">
             <div className="flex-1">
               <Switch
-                label="下载音视频"
-                checked={settings.site.download}
+                label="下载视频"
+                checked={settings.site.download_video}
                 onChange={(checked) =>
                   setSettings((prev) => ({
                     ...prev,
-                    site: { ...prev.site, download: checked },
+                    site: { ...prev.site, download_video: checked, download: checked || prev.site.download_audio },
                   }))
                 }
                 onText="开启"
                 offText="关闭"
               />
               <p className="text-xs text-gray-500 mt-1">
-                缓存时自动下载音视频到本地
+                缓存时自动下载视频文件到本地
+              </p>
+            </div>
+            <div className="flex-1">
+              <Switch
+                label="下载音频"
+                checked={settings.site.download_audio}
+                onChange={(checked) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    site: { ...prev.site, download_audio: checked, download: checked || prev.site.download_video },
+                  }))
+                }
+                onText="开启"
+                offText="关闭"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                缓存时自动下载音频文件到本地
               </p>
             </div>
             <div className="flex-1">

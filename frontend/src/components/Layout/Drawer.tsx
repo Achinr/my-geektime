@@ -7,6 +7,8 @@ import {
   Hammer,
   ChevronDown,
   ChevronRight,
+  RefreshCw,
+  LogOut,
   X,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
@@ -64,11 +66,48 @@ interface DrawerProps {
 
 export const Drawer: React.FC<DrawerProps> = ({ isOpen, onClose, openMenus, onToggleMenu }) => {
   const user = useAuthStore((state) => state.user)
+  const logout = useAuthStore((state) => state.logout)
+  const setGeekAuth = useAuthStore((state) => state.setGeekAuth)
   const navigate = useNavigate()
   const [drawerWidth, setDrawerWidth] = useState<number>(288) // w-72 = 288px
+  const [showCookieModal, setShowCookieModal] = useState(false)
+  const [cookie, setCookie] = useState('')
   const isResizing = useRef(false)
   const startX = useRef(0)
   const startWidth = useRef(0)
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
+
+  const handleRefreshCookie = async () => {
+    if (!cookie || cookie.length < 50) {
+      alert('Cookie 不少于50个字符')
+      return
+    }
+    try {
+      const response = await fetch('/v2/base/refresh/cookie', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ cookie }),
+      })
+      const data = await response.json()
+      if (data.status === 0) {
+        setGeekAuth(true)
+        setShowCookieModal(false)
+        setCookie('')
+      } else {
+        alert(data.msg || 'Cookie 保存失败')
+      }
+    } catch (error) {
+      console.error('Failed to save cookie', error)
+      alert('Cookie 保存失败，请重试')
+    }
+  }
 
   const isVisible = (item: MenuItem) => {
     if (item.visibleOn && user?.role_id) {
@@ -220,8 +259,86 @@ export const Drawer: React.FC<DrawerProps> = ({ isOpen, onClose, openMenus, onTo
               )}
             </div>
           ))}
+
+          {/* User section */}
+          <div className="border-t border-gray-100 mt-4 pt-4 px-3">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center">
+                <span className="text-sm font-medium text-white">
+                  {user?.user_name?.charAt(0)?.toUpperCase() || 'U'}
+                </span>
+              </div>
+              <span className="text-sm font-medium text-gray-700">{user?.user_name || '用户'}</span>
+            </div>
+            <button
+              onClick={() => {
+                onClose()
+                setShowCookieModal(true)
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <RefreshCw size={16} />
+              刷新凭证
+            </button>
+            <button
+              onClick={() => {
+                onClose()
+                handleLogout()
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm text-red-500 hover:bg-gray-100 transition-colors"
+            >
+              <LogOut size={16} />
+              退出登录
+            </button>
+          </div>
         </nav>
       </aside>
+
+      {/* Cookie Modal */}
+      {showCookieModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">刷新凭证</h3>
+              <button
+                onClick={() => {
+                  setShowCookieModal(false)
+                  setCookie('')
+                }}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-400" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              请输入极客时间 Cookie（从浏览器开发者工具中获取）
+            </p>
+            <textarea
+              value={cookie}
+              onChange={(e) => setCookie(e.target.value)}
+              placeholder="请输入 GCESS 或 _gid 等 Cookie 值"
+              className="w-full h-32 px-4 py-3 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => {
+                  setShowCookieModal(false)
+                  setCookie('')
+                }}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleRefreshCookie}
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors"
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

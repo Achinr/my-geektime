@@ -1,14 +1,16 @@
 package config
 
 type Site struct {
-	Cache    bool     `json:"cache" yaml:"cache"`
-	Download bool     `json:"download" yaml:"download"`
-	Register Register `json:"register" yaml:"register"`
-	Login    Login    `json:"login" yaml:"login"`
-	Play     Play     `json:"play" yaml:"play"`
-	Proxy    Proxy    `json:"proxy" yaml:"proxy"`
-	Cookie   Cookie   `json:"cookie" yaml:"cookie"`
-	Email    Email    `json:"email" yaml:"email"`
+	Cache         bool     `json:"cache" yaml:"cache"`
+	Download      bool     `json:"download" yaml:"download"`
+	DownloadVideo bool     `json:"download_video" yaml:"download_video"`
+	DownloadAudio bool     `json:"download_audio" yaml:"download_audio"`
+	Register      Register `json:"register" yaml:"register"`
+	Login         Login    `json:"login" yaml:"login"`
+	Play          Play     `json:"play" yaml:"play"`
+	Proxy         Proxy    `json:"proxy" yaml:"proxy"`
+	Cookie        Cookie   `json:"cookie" yaml:"cookie"`
+	Email         Email    `json:"email" yaml:"email"`
 }
 
 type (

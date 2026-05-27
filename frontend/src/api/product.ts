@@ -79,6 +79,6 @@ export const getArticleDiscussions = (params: { target_id: string; target_type: 
   return request.get('/product/article/discussions', { params })
 }
 
-export const downloadProduct = (params: { pid: number }) => {
+export const downloadProduct = (params: { pid: number; download_video?: boolean; download_audio?: boolean }) => {
   return request.post('/product/download', params)
 }

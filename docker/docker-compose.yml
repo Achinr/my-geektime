@@ -2,26 +2,29 @@ version: "3"
 networks:
   mygeektime:
     driver: bridge
+volumes:
+  pgdata:
 services:
-  mysql:
-    image: mysql:latest
-    hostname: "mysql"
+  postgres:
+    image: postgres:16-alpine
+    hostname: "postgres"
     restart: always
+    user: root
     networks:
       - mygeektime
     environment:
-      - MYSQL_ROOT_PASSWORD=123456
-      - MYSQL_DATABASE=mygeektime
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=mygeektime
     volumes:
-      - ./mysql/data:/var/lib/mysql
-      - ./mysql/init/:/docker-entrypoint-initdb.d/
-      - ./mysql/my.cnf:/etc/mysql/conf.d/my.cnf
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init/:/docker-entrypoint-initdb.d/
       - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "5432:5432"
   server:
     hostname: mygeektime
-    # build: ../         # build  from local dockerfile
     image: zkep/mygeektime:latest
-    # platform: linux/amd64  # linux/arm64 指定架构平台
     privileged: true
     restart: always
     networks:
@@ -32,7 +35,7 @@ services:
     environment:
       - GIN_MODE=test
     volumes:
-      -  ./server/repo:/repo
-      -  ./server/config.yml:/config.yml
+      - ./server/repo:/repo
+      - ./server/config.yml:/config.yml
     depends_on:
-      - mysql
+      - postgres

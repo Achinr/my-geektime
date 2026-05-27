@@ -12,6 +12,7 @@ import (
 	"github.com/zkep/my-geektime/internal/types/geek"
 	"github.com/zkep/my-geektime/internal/types/sys_dict"
 	"go.uber.org/zap"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -114,6 +115,18 @@ func GetArticles(ctx context.Context, accessToken string,
 	return &resp, nil
 }
 
+// deriveFormFromMedia derives OtherForm value from IsVideo/IsAudio flags.
+// Returns 1 for audio-only (图文+音频), 2 for video, 0 otherwise.
+func deriveFormFromMedia(isVideo, isAudio bool) int32 {
+	if isVideo {
+		return 2
+	}
+	if isAudio {
+		return 1
+	}
+	return 0
+}
+
 func GetPvipProduct(ctx context.Context, accessToken string,
 	req geek.PvipProductRequest) (*geek.ProductResponse, error) {
 	raw, _ := json.Marshal(req)
@@ -137,15 +150,16 @@ func GetPvipProduct(ctx context.Context, accessToken string,
 					Raw:        itemRaw,
 					Source:     value.Type,
 					OtherType:  req.ProductType,
-					OtherForm:  req.ProductForm,
+					OtherForm:  deriveFormFromMedia(value.IsVideo, value.IsAudio),
 					OtherGroup: req.Direction,
 					OtherTag:   req.Tag,
 				}
 				if err := global.DB.
-					Model(&model.Product{}).
-					Where(&model.Product{Pid: info.Pid}).
-					Assign(&info).
-					FirstOrCreate(&info).Error; err != nil {
+					Clauses(clause.OnConflict{
+						Columns:   []clause.Column{{Name: "pid"}},
+						UpdateAll: true,
+					}).
+					Create(&info).Error; err != nil {
 					global.LOG.Error("GetPvipProduct.AutoSync", zap.Error(err))
 				}
 			}
@@ -181,7 +195,7 @@ func GetProduct(ctx context.Context, accessToken string,
 					Cover:      value.Share.Cover,
 					Raw:        itemRaw,
 					Source:     value.Type,
-					OtherForm:  2,
+					OtherForm:  deriveFormFromMedia(value.IsVideo, value.IsAudio),
 					OtherGroup: req.Direction,
 					OtherTag:   req.LabelID,
 				}
@@ -190,10 +204,11 @@ func GetProduct(ctx context.Context, accessToken string,
 					info.OtherType = otherType.Value
 				}
 				if err := global.DB.
-					Model(&model.Product{}).
-					Where(&model.Product{Pid: info.Pid}).
-					Assign(info).
-					FirstOrCreate(&info).Error; err != nil {
+					Clauses(clause.OnConflict{
+						Columns:   []clause.Column{{Name: "pid"}},
+						UpdateAll: true,
+					}).
+					Create(&info).Error; err != nil {
 					global.LOG.Error("GetProduct.AutoSync", zap.Error(err))
 				}
 			}
@@ -422,17 +437,19 @@ func GetColumnInfo(ctx context.Context, accessToken string,
 		value := resp.Data
 		itemRaw, _ := json.Marshal(value)
 		info := model.Product{
-			Pid:    fmt.Sprintf("%d", value.ID),
-			Title:  value.Share.Title,
-			Cover:  value.Share.Cover,
-			Raw:    itemRaw,
-			Source: value.Type,
+			Pid:       fmt.Sprintf("%d", value.ID),
+			Title:     value.Share.Title,
+			Cover:     value.Share.Cover,
+			Raw:       itemRaw,
+			Source:    value.Type,
+			OtherForm: deriveFormFromMedia(value.IsVideo, value.IsAudio),
 		}
 		if err := global.DB.
-			Model(&model.Product{}).
-			Where(&model.Product{Pid: info.Pid}).
-			Assign(&info).
-			FirstOrCreate(&info).Error; err != nil {
+			Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "pid"}},
+				UpdateAll: true,
+			}).
+			Create(&info).Error; err != nil {
 			global.LOG.Error("GetColumnInfo.AutoSync", zap.Error(err))
 		}
 		return nil

@@ -196,7 +196,7 @@ func GeektimeCategory(ctx context.Context, tagData sys_dict.TagData) error {
 					Pkey:    key,
 					Name:    "全部",
 					Rkey:    sys_dict.GeektimeCategoryKey,
-					Content: []byte(fmt.Sprintf(`{"value": %d}`, tag.Value)),
+					Content: []byte(fmt.Sprintf(`{"value": %d}`, 0)),
 				})
 			}
 			optCategory := model.SysDictBase{

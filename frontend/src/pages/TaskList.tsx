@@ -407,14 +407,7 @@ export const TaskList: React.FC = () => {
                         ? 'bg-primary-500/10 text-primary-600 border border-primary-300 shadow-sm'
                         : 'bg-white text-gray-600 border border-gray-200 hover:border-primary-300 hover:bg-primary-50'
                     }`}
-                    onClick={() => {
-                      setFilters({ ...filters, direction: item.value, tag: 0 })
-                      setGeektimeCategory(
-                        geektimeDirection.map((d) =>
-                          d.value === item.value ? d : { ...d, children: [] }
-                        )
-                      )
-                    }}
+                    onClick={() => setFilters({ ...filters, direction: item.value, tag: 0 })}
                   >
                     {item.label}
                   </button>
@@ -422,47 +415,46 @@ export const TaskList: React.FC = () => {
               </div>
             </div>
 
-            {filters.direction !== 0 && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">课程分类</label>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                      filters.tag === 0
-                        ? 'bg-primary-500/10 text-primary-600 border border-primary-300 shadow-sm'
-                        : 'bg-white text-gray-600 border border-gray-200 hover:border-primary-300 hover:bg-primary-50'
-                    }`}
-                    onClick={() => setFilters({ ...filters, tag: 0 })}
-                  >
-                    全部
-                  </button>
-                  {geektimeCategory
-                    .find((d) => d.value === filters.direction)
-                    ?.children?.slice(0, showAllCategories ? undefined : 10)
-                    .map((item: any) => (
-                      <button
-                        key={item.value}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                          filters.tag === item.value
-                            ? 'bg-primary-500/10 text-primary-600 border border-primary-300 shadow-sm'
-                            : 'bg-white text-gray-600 border border-gray-200 hover:border-primary-300 hover:bg-primary-50'
-                        }`}
-                        onClick={() => setFilters({ ...filters, tag: item.value })}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  {geektimeCategory.find((d) => d.value === filters.direction)?.children?.length > 10 && (
-                    <button
-                      className="px-3 py-1.5 rounded-lg text-sm font-medium text-primary-600 hover:bg-primary-50 transition-colors"
-                      onClick={() => setShowAllCategories(!showAllCategories)}
-                    >
-                      {showAllCategories ? '收起' : '展开更多'}
-                    </button>
-                  )}
-                </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">课程分类</label>
+              <div className="flex flex-wrap gap-2 items-center">
+                {(() => {
+                  const categoryOptions = filters.direction
+                    ? geektimeCategory.find((c) => c.value === filters.direction)?.children || []
+                    : geektimeCategory.flatMap((c) => c.children || [])
+                  const allOptions = [{ label: '全部', value: 0 }, ...categoryOptions]
+                  const displayCount = 12
+                  const shouldShowMore = allOptions.length > displayCount
+                  const visibleOptions = showAllCategories ? allOptions : allOptions.slice(0, displayCount)
+
+                  return (
+                    <>
+                      {visibleOptions.map((item: any) => (
+                        <button
+                          key={item.value}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                            filters.tag === item.value
+                              ? 'bg-primary-500/10 text-primary-600 border border-primary-300 shadow-sm'
+                              : 'bg-white text-gray-600 border border-gray-200 hover:border-primary-300 hover:bg-primary-50'
+                          }`}
+                          onClick={() => setFilters({ ...filters, tag: item.value })}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                      {shouldShowMore && (
+                        <button
+                          className="px-3 py-1.5 rounded-lg text-sm font-medium text-primary-600 bg-primary-50 border border-primary-200 hover:bg-primary-100 transition-all duration-200"
+                          onClick={() => setShowAllCategories(!showAllCategories)}
+                        >
+                          {showAllCategories ? '收起' : `更多 (${allOptions.length - displayCount})`}
+                        </button>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
-            )}
+            </div>
 
             <div className="flex flex-wrap gap-3 items-center">
               <Select

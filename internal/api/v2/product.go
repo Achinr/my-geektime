@@ -3,6 +3,7 @@ package v2
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zkep/my-geektime/internal/global"
@@ -284,6 +285,42 @@ func (p *Product) ProductList(c *gin.Context) {
 	global.OK(c, ret)
 }
 
+// fillTaskDownloadStatus 查询任务表，填充课程的下载状态
+func fillTaskDownloadStatus(rows []geek.ProductListRow) {
+	if len(rows) == 0 {
+		return
+	}
+	// 收集所有 product ID
+	ids := make([]string, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, strconv.Itoa(r.ID))
+	}
+	// 一次查询所有 product 任务的 other_id 与状态
+	var tasks []struct {
+		OtherId string `gorm:"column:other_id"`
+		Status  int32  `gorm:"column:status"`
+	}
+	global.DB.Model(&model.Task{}).
+		Select("other_id, status").
+		Where("task_type = ?", service.TASK_TYPE_PRODUCT).
+		Where("other_id IN ?", ids).
+		Where("deleted_at = ?", 0).
+		Find(&tasks)
+	// 建立 other_id -> status 的映射
+	statusMap := make(map[string]int32, len(tasks))
+	for _, t := range tasks {
+		statusMap[t.OtherId] = t.Status
+	}
+	// 填充每行的下载状态
+	for i, r := range rows {
+		pid := strconv.Itoa(r.ID)
+		if st, ok := statusMap[pid]; ok {
+			rows[i].TaskStatus = int(st)
+			rows[i].Downloaded = st >= service.TASK_STATUS_FINISHED
+		}
+	}
+}
+
 func (p *Product) PvipProductList(c *gin.Context) {
 	var req geek.PvipProductRequest
 	if err := c.ShouldBind(&req); err != nil {
@@ -339,7 +376,7 @@ func (p *Product) PvipProductList(c *gin.Context) {
 			}
 			ret.Rows = append(ret.Rows, row)
 		}
-
+		fillTaskDownloadStatus(ret.Rows)
 		global.OK(c, ret)
 		return
 	}
@@ -388,5 +425,6 @@ func (p *Product) PvipProductList(c *gin.Context) {
 		row.Redirect = sys_dict.ProductURLWithType(v.Type, v.ID)
 		ret.Rows = append(ret.Rows, row)
 	}
+	fillTaskDownloadStatus(ret.Rows)
 	global.OK(c, ret)
 }

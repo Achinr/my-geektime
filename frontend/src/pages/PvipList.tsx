@@ -29,6 +29,12 @@ const productSortOptions = [
   { label: '最热', value: 4 },
 ]
 
+const cacheFilterOptions = [
+  { label: '全部', value: 0 },
+  { label: '已缓存', value: 1 },
+  { label: '未缓存', value: 2 },
+]
+
 export const PvipList: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [items, setItems] = useState<ProductItem[]>([])
@@ -42,6 +48,7 @@ export const PvipList: React.FC = () => {
     product_form: 0,
     sort: 8,
     keyword: '',
+    cache_filter: 0,
   })
   const [prevFilters, setPrevFilters] = useState<typeof filters | null>(null)
 
@@ -90,7 +97,7 @@ export const PvipList: React.FC = () => {
     setPrevFilters(filters)
     setPage(1)
     loadData(1)
-  }, [debouncedKeyword, filters.direction, filters.tag, filters.product_type, filters.product_form, filters.sort])
+  }, [debouncedKeyword, filters.direction, filters.tag, filters.product_type, filters.product_form, filters.sort, filters.cache_filter])
 
   useEffect(() => {
     // 初始化时由第一个 useEffect 处理，这里只处理用户主动改变页码
@@ -156,7 +163,15 @@ export const PvipList: React.FC = () => {
     }
   }
 
-  const allSelected = items.length > 0 && items.every((item) => selectedIds.has(item.id))
+  // 客户端缓存状态筛选
+  const filteredItems = React.useMemo(() => {
+    if (filters.cache_filter === 0) return items
+    if (filters.cache_filter === 1) return items.filter((item) => item.downloaded)
+    if (filters.cache_filter === 2) return items.filter((item) => !item.downloaded)
+    return items
+  }, [items, filters.cache_filter])
+
+  const allSelected = filteredItems.length > 0 && filteredItems.every((item) => selectedIds.has(item.id))
   const selectedItems = items.filter((item) => selectedIds.has(item.id))
 
   const handleDownloadClick = (item: ProductItem) => {
@@ -194,9 +209,9 @@ export const PvipList: React.FC = () => {
     if (allSelected) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(items.map((item) => item.id)))
+      setSelectedIds(new Set(filteredItems.map((item) => item.id)))
     }
-  }, [allSelected, items])
+  }, [allSelected, filteredItems])
 
   const handleToggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -353,7 +368,7 @@ export const PvipList: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
               <Select
                 label="排序"
                 options={productSortOptions}
@@ -376,6 +391,14 @@ export const PvipList: React.FC = () => {
                 value={filters.product_form}
                 onChange={(e) =>
                   setFilters({ ...filters, product_form: Number(e.target.value) })
+                }
+              />
+              <Select
+                label="缓存状态"
+                options={cacheFilterOptions}
+                value={filters.cache_filter}
+                onChange={(e) =>
+                  setFilters({ ...filters, cache_filter: Number(e.target.value) })
                 }
               />
               <Input
@@ -430,7 +453,7 @@ export const PvipList: React.FC = () => {
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {items.map((item) => (
+              {filteredItems.map((item) => (
                 <div
                   key={item.id}
                   className={`border rounded-lg p-4 transition-colors ${
@@ -452,10 +475,17 @@ export const PvipList: React.FC = () => {
                       className="w-16 h-16 rounded object-cover"
                     />
                     <div className="flex-1 min-w-0">
-                      <div
-                        className="font-semibold text-gray-800 truncate search-highlight"
-                        dangerouslySetInnerHTML={{ __html: item.title }}
-                      />
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="font-semibold text-gray-800 truncate search-highlight"
+                          dangerouslySetInnerHTML={{ __html: item.title }}
+                        />
+                        {item.downloaded && (
+                          <span className="flex-shrink-0 px-1.5 py-0.5 text-xs font-medium text-green-700 bg-green-100 border border-green-200 rounded-full whitespace-nowrap">
+                            已缓存
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-gray-500 truncate">
                         {item.subtitle}
                       </p>
@@ -525,7 +555,7 @@ export const PvipList: React.FC = () => {
                 </div>
               ))}
             </div>
-            {items.length === 0 && !loading && (
+            {filteredItems.length === 0 && !loading && (
               <div className="flex flex-col items-center justify-center py-20 text-gray-500">
                 <div className="text-lg">暂无数据</div>
               </div>

@@ -44,6 +44,8 @@ export interface ProductItem {
   sale: number
   redirect?: string
   intro_html?: string
+  downloaded?: boolean
+  task_status?: number
 }
 
 export const getProductList = (params?: ProductListParams) => {

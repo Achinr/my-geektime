@@ -102,6 +102,10 @@ func drawProgressBar(taskID string, prefix string, proportion float32, width int
 	globalProgressManager.updateLine(taskID, s)
 }
 
+const (
+	maxRetriesPerSegment = 5 // Maximum number of retries per segment download
+)
+
 // Downloader represents an M3U8 downloader
 type Downloader struct {
 	lock         sync.Mutex
@@ -117,6 +121,7 @@ type Downloader struct {
 	headers      map[string]string
 	taskID       string // Unique task identifier for progress bar display
 	progressLine int    // Allocated line number for progress bar
+	retryCount   map[int]int // Track retry count per segment index
 
 	result *ParseResult
 	ctx    context.Context
@@ -197,8 +202,10 @@ func NewDownloader(ctx context.Context, config DownloadConfig) (*Downloader, err
 		headers:      config.Headers,
 		taskID:       config.TaskIndex,                                     // Use TaskIndex as unique identifier
 		progressLine: globalProgressManager.allocateLine(config.TaskIndex), // Allocate line for progress bar
+		retryCount:   make(map[int]int),
 		// Create independent HTTP client with larger connection pool
 		client: &http.Client{
+			Timeout: 60 * time.Second, // HTTP request timeout to prevent hanging
 			Transport: &http.Transport{
 				MaxIdleConns:        100,
 				MaxIdleConnsPerHost: 20,
@@ -251,10 +258,21 @@ func (d *Downloader) Start() error {
 			// Mark this segment as currently downloading
 			atomic.StoreInt32(&d.currentIdx, int32(idx))
 			if err := d.downloadSegment(idx); err != nil {
-				log.Printf("[Warn] download segment failed, will retry (index: %d)", idx)
-				// Put back into queue for retry
-				if retryErr := d.back(idx); retryErr != nil {
-					log.Printf("[Error] put segment back to queue failed (index: %d)", idx)
+				// Track retry count - skip segment if exceeded max retries
+				d.lock.Lock()
+				d.retryCount[idx]++
+				retries := d.retryCount[idx]
+				d.lock.Unlock()
+				if retries >= maxRetriesPerSegment {
+					log.Printf("[Error] segment %d failed after %d retries, skipping: %v", idx, retries, err)
+					// Mark as finished to avoid infinite waiting
+					atomic.AddInt32(&d.finish, 1)
+				} else {
+					log.Printf("[Warn] download segment failed, will retry (%d/%d) (index: %d)", retries, maxRetriesPerSegment, idx)
+					// Put back into queue for retry
+					if retryErr := d.back(idx); retryErr != nil {
+						log.Printf("[Error] put segment back to queue failed (index: %d)", idx)
+					}
 				}
 			}
 			<-limitChan

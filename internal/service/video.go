@@ -253,7 +253,7 @@ func VideoWithM3u8(ctx context.Context, dir, fileName string, req *PlayMeta) (st
 		Key:          req.Ciphertext,
 		Filename:     fileName,
 		TaskIndex:    fileName, // Use fileName as task identifier for isolated directory
-		Concurrency:  10,
+		Concurrency:  20,
 		Headers:      headers,
 	}
 

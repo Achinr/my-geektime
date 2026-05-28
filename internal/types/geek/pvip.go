@@ -10,8 +10,8 @@ type PvipProductRequest struct {
 	Prev         int     `json:"prev"  form:"prev"`
 	Size         int     `json:"size"  form:"size"`
 	Keyword      string  `json:"keyword"  form:"keyword"`
-	Tag          int32   `json:"-"  form:"tag"`
-	Direction    int32   `json:"-"  form:"direction"`
+	Tag          int32   `json:"tag"  form:"tag"`
+	Direction    int32   `json:"direction"  form:"direction"`
 	Page         int     `json:"-" form:"page"`
 	PerPage      int     `json:"-"  form:"perPage"`
 }
